@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Boxing Match Simulator</title>
   <style>
     body {
@@ -13,23 +13,45 @@
     }
     h1 {
       text-align: center;
-      margin-bottom: 30px;
       color: #ffcc00;
+      margin-bottom: 20px;
     }
-    .input-group input, select, .add-btn, .simulate-btn, .remove-btn, .reset-btn {
-      padding: 10px;
-      margin: 5px;
+    .tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 20px;
+      margin: 0 5px;
       border: none;
-      border-radius: 6px;
-      font-size: 16px;
-    }
-    .add-btn, .simulate-btn, .remove-btn, .reset-btn {
-      background-color: #ffcc00;
+      border-radius: 4px;
       cursor: pointer;
+    }
+    .tab-btn.active {
+      background-color: #ffcc00;
+      color: #000;
       font-weight: bold;
     }
-    .fighter {
-      margin-bottom: 20px;
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    input, select, button {
+      padding: 10px;
+      margin: 5px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+    }
+    button {
+      background-color: #ffcc00;
+      font-weight: bold;
+      cursor: pointer;
     }
     #result {
       margin-top: 30px;
@@ -37,12 +59,12 @@
       background: #2a2a2a;
       padding: 20px;
       border-radius: 8px;
-      height: 400px;
-      overflow-y: auto;
       border: 1px solid #444;
+      max-height: 400px;
+      overflow-y: auto;
     }
     .scorecard {
-      margin-top: 30px;
+      margin-top: 20px;
       background: #2a2a2a;
       padding: 10px;
       border-radius: 8px;
@@ -53,255 +75,278 @@
       border-collapse: collapse;
     }
     th, td {
-      padding: 10px;
+      padding: 8px;
       text-align: center;
       border: 1px solid #444;
     }
     th {
       background-color: #333;
     }
+    .champion-icon {
+      color: gold;
+      font-size: 1.2em;
+    }
   </style>
 </head>
-<body>
-  <h1>Boxing Match Simulator</h1>
+<script>
+let fighters = {};
+let currentChampion = null;
 
-  <div class="input-group">
-    <input type="text" id="fighterName" placeholder="Fighter Name">
-    <input type="number" id="fighterWins" placeholder="Wins">
-    <input type="number" id="fighterLosses" placeholder="Losses">
-    <input type="number" id="fighterOverall" placeholder="Overall">
-    <button class="add-btn" onclick="addFighter()">Add Fighter</button>
-    <button class="remove-btn" onclick="removeFighter()">Remove Fighter</button>
-    <button class="reset-btn" onclick="resetFighters()">Reset Fighters</button>
-  </div>
+function saveFighters() {
+  localStorage.setItem("fighters", JSON.stringify(fighters));
+  localStorage.setItem("champion", currentChampion);
+}
 
-  <div class="fighter">
-    <label for="selectA">Fighter A:</label>
-    <select id="selectA"></select>
-  </div>
+function loadFighters() {
+  const saved = localStorage.getItem("fighters");
+  if (saved) fighters = JSON.parse(saved);
+  currentChampion = localStorage.getItem("champion") || null;
+  updateDropdowns();
+  updateRankings();
+}
 
-  <div class="fighter">
-    <label for="selectB">Fighter B:</label>
-    <select id="selectB"></select>
-  </div>
+function addFighter() {
+  const name = document.getElementById("fighterName").value.trim();
+  const wins = parseInt(document.getElementById("fighterWins").value);
+  const losses = parseInt(document.getElementById("fighterLosses").value);
+  const overall = parseInt(document.getElementById("fighterOverall").value);
+  if (!name || isNaN(wins) || isNaN(losses) || isNaN(overall)) {
+    alert("Fill all fighter fields.");
+    return;
+  }
+  fighters[name] = { wins, losses, overall };
+  updateDropdowns();
+  saveFighters();
+}
 
-  <button class="simulate-btn" onclick="simulateMatch()">Simulate Match</button>
+function removeFighter() {
+  const name = document.getElementById("selectA").value;
+  delete fighters[name];
+  if (currentChampion === name) currentChampion = null;
+  updateDropdowns();
+  updateRankings();
+  saveFighters();
+}
 
-  <div id="result" class="result-text"></div>
+function resetFighters() {
+  if (confirm("Reset all fighters?")) {
+    fighters = {};
+    currentChampion = null;
+    updateDropdowns();
+    updateRankings();
+    saveFighters();
+  }
+}
 
-  <div id="scorecard" class="scorecard" style="display:none;">
-    <h3>Judges' Scorecards</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Judge</th>
-          <th>Round 1</th>
-          <th>Round 2</th>
-          <th>Round 3</th>
-          <th>Round 4</th>
-          <th>Round 5</th>
-          <th>Round 6</th>
-          <th>Round 7</th>
-          <th>Round 8</th>
-          <th>Round 9</th>
-          <th>Round 10</th>
-          <th>Round 11</th>
-          <th>Round 12</th>
-        </tr>
-      </thead>
-      <tbody id="scorecardBody"></tbody>
-    </table>
-  </div>
+function updateDropdowns() {
+  const selectA = document.getElementById("selectA");
+  const selectB = document.getElementById("selectB");
+  const championSelect = document.getElementById("championSelect");
+  selectA.innerHTML = "";
+  selectB.innerHTML = "";
+  championSelect.innerHTML = "";
 
-  <script>
-    let fighters = {};
+  for (let name in fighters) {
+    const record = `(${fighters[name].wins}-${fighters[name].losses}, OVR: ${fighters[name].overall})`;
+    const championIcon = name === currentChampion ? " 👑" : "";
+    [selectA, selectB, championSelect].forEach(sel => {
+      const opt = new Option(`${name} ${championIcon} ${record}`, name);
+      sel.appendChild(opt);
+    });
+  }
+}
 
-    function addFighter() {
-      const name = document.getElementById('fighterName').value.trim();
-      const wins = parseInt(document.getElementById('fighterWins').value);
-      const losses = parseInt(document.getElementById('fighterLosses').value);
-      const overall = parseInt(document.getElementById('fighterOverall').value);
+function setChampion() {
+  const name = document.getElementById("championSelect").value;
+  if (fighters[name]) {
+    currentChampion = name;
+    saveFighters();
+    updateDropdowns();
+    updateRankings();
+  }
+}
 
-      if (!name || isNaN(wins) || isNaN(losses) || isNaN(overall)) {
-        alert('Please fill all fighter fields correctly.');
-        return;
-      }
+function updateRankings() {
+  const list = document.getElementById("rankingsList");
+  const sorted = Object.entries(fighters).sort((a, b) => {
+    const qa = a[1].wins * 2 - a[1].losses + (a[0] === currentChampion ? 5 : 0);
+    const qb = b[1].wins * 2 - b[1].losses + (b[0] === currentChampion ? 5 : 0);
+    return qb - qa;
+  });
 
-      fighters[name] = { wins, losses, overall };
-      updateFighterDropdowns();
-      saveFighterData();
+  list.innerHTML = "";
+  sorted.forEach(([name, data], index) => {
+    const item = document.createElement("li");
+    item.innerHTML = `${name} (${data.wins}-${data.losses}, OVR: ${data.overall})` +
+      (name === currentChampion ? ' <span class="champion-icon">👑</span>' : '');
+    list.appendChild(item);
+  });
+}
 
-      document.getElementById('fighterName').value = '';
-      document.getElementById('fighterWins').value = '';
-      document.getElementById('fighterLosses').value = '';
-      document.getElementById('fighterOverall').value = '';
-    }
+function showTab(tab) {
+  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(tab).classList.add("active");
+  document.querySelector(`.tab-btn[onclick="showTab('${tab}')"]`).classList.add("active");
+}
 
-    function removeFighter() {
-      const name = document.getElementById('selectA').value;
-      if (!fighters[name]) return;
-      delete fighters[name];
-      updateFighterDropdowns();
-      saveFighterData();
-    }
+function formatTime(minute, second) {
+  return `${2 - minute}:${(60 - second).toString().padStart(2, '0')}`;
+}
 
-    function resetFighters() {
-      fighters = {};
-      updateFighterDropdowns();
-      saveFighterData();
-    }
+async function simulateMatch() {
+  const nameA = document.getElementById("selectA").value;
+  const nameB = document.getElementById("selectB").value;
+  const titleMatch = document.getElementById("titleMatchToggle").checked;
 
-    function updateFighterDropdowns() {
-      const selectA = document.getElementById('selectA');
-      const selectB = document.getElementById('selectB');
-      selectA.innerHTML = '';
-      selectB.innerHTML = '';
+  if (!fighters[nameA] || !fighters[nameB] || nameA === nameB) {
+    alert("Select two different fighters.");
+    return;
+  }
 
-      for (const name in fighters) {
-        const fighter = fighters[name];
-        const optionText = `${name} (${fighter.wins}-${fighter.losses}, OVR: ${fighter.overall})`;
-        const optionA = new Option(optionText, name);
-        const optionB = new Option(optionText, name);
-        selectA.appendChild(optionA);
-        selectB.appendChild(optionB);
-      }
-    }
+  let a = fighters[nameA];
+  let b = fighters[nameB];
+  let stats = {
+    [nameA]: { thrown: 0, landed: 0, damage: 0 },
+    [nameB]: { thrown: 0, landed: 0, damage: 0 }
+  };
 
-    function saveFighterData() {
-      localStorage.setItem('fighters', JSON.stringify(fighters));
-    }
+  let result = `--- ${nameA} vs ${nameB} ---\n${titleMatch && (nameA === currentChampion || nameB === currentChampion) ? "CHAMPIONSHIP BOUT\n" : ""}`;
 
-    function loadFighterData() {
-      const savedFighters = localStorage.getItem('fighters');
-      if (savedFighters) {
-        fighters = JSON.parse(savedFighters);
-        updateFighterDropdowns();
-      }
-    }
+  let koWinner = null;
+  outer: for (let round = 1; round <= 12; round++) {
+    result += `\nRound ${round}\n`;
+    for (let min = 0; min < 3; min++) {
+      for (let sec = 0; sec < 60; sec += 15) {
+        await new Promise(res => setTimeout(res, 10));
+        const isA = Math.random() < 0.5;
+        const atk = isA ? nameA : nameB;
+        const def = isA ? nameB : nameA;
+        const atkOvr = fighters[atk].overall;
+        const defOvr = fighters[def].overall;
+        const diff = atkOvr - defOvr;
 
-    function formatTime(minute, second) {
-      const min = 2 - minute;
-      const sec = 60 - second;
-      return `${min}:${sec.toString().padStart(2, '0')}`;
-    }
+        stats[atk].thrown++;
+        let power = Math.random() * 100 + diff;
 
-    async function simulateMatch() {
-      const nameA = document.getElementById('selectA').value;
-      const nameB = document.getElementById('selectB').value;
-
-      if (!fighters[nameA] || !fighters[nameB]) {
-        alert('Both fighters must be selected.');
-        return;
-      }
-
-      if (nameA === nameB) {
-        alert('Please select two different fighters.');
-        return;
-      }
-
-      const fighterA = fighters[nameA];
-      const fighterB = fighters[nameB];
-
-      let stats = {
-        [nameA]: { punchesThrown: 0, punchesLanded: 0, knockdowns: 0, stamina: 100, damage: 0 },
-        [nameB]: { punchesThrown: 0, punchesLanded: 0, knockdowns: 0, stamina: 100, damage: 0 }
-      };
-
-      let resultText = `--- Match Start: ${nameA} vs. ${nameB} ---\n`;
-      let fightEnded = false;
-      let endRound = 12;
-      let endTime = '3:00';
-
-      for (let round = 1; round <= 12; round++) {
-        resultText += `\nRound ${round}\n`;
-
-        for (let minute = 0; minute < 3; minute++) {
-          for (let second = 0; second < 60; second += 15) {
-            await new Promise(resolve => setTimeout(resolve, 30));
-            const timeStamp = formatTime(minute, second);
-            const isA = Math.random() < 0.5;
-            const actor = isA ? nameA : nameB;
-            const defender = isA ? nameB : nameA;
-            stats[actor].punchesThrown++;
-
-            let random = Math.random();
-            let action = '';
-
-            if (random < 0.25) {
-              action = `${actor} lands a clean jab on ${defender}.`;
-              stats[actor].punchesLanded++;
-              stats[defender].stamina -= 1;
-              stats[defender].damage += 1;
-            } else if (random < 0.5) {
-              action = `${actor} throws a vicious uppercut!`;
-              stats[actor].punchesLanded++;
-              stats[defender].stamina -= 3;
-              stats[defender].damage += 3;
-            } else if (random < 0.7) {
-              action = `${defender} absorbs a hard body shot.`;
-              stats[actor].punchesLanded++;
-              stats[defender].stamina -= 2;
-              stats[defender].damage += 2;
-            } else {
-              action = 'Both fighters feint and look for openings.';
-            }
-
-            resultText += `[${timeStamp}] ${action}\n`;
+        if (power > 95 + Math.random() * 10) {
+          stats[atk].landed++;
+          stats[def].damage += Math.floor(Math.random() * 10 + 5);
+          result += `[${formatTime(min, sec)}] ${atk} drops ${def} with a brutal shot!\n`;
+          if (Math.random() * 100 > defOvr / 2) {
+            koWinner = atk;
+            result += `\n💥 KO! ${atk} wins by knockout in Round ${round}!\n`;
+            break outer;
+          } else {
+            result += `${def} gets up and the fight continues...\n`;
           }
+        } else if (power > 70) {
+          stats[atk].landed++;
+          stats[def].damage += 3;
+          result += `[${formatTime(min, sec)}] ${atk} lands a clean punch.\n`;
+        } else {
+          result += `[${formatTime(min, sec)}] Both look for openings.\n`;
         }
       }
-
-      // Simulate Judges' Scorecards
-      const scorecards = generateScorecards();
-      document.getElementById('scorecard').style.display = 'block';
-      populateScorecards(scorecards);
-
-      // Randomly decide the winner
-      const winner = Math.random() < 0.5 ? nameA : nameB;
-
-      if (winner === nameA) {
-        fighterA.wins++;
-        fighterB.losses++;
-        resultText += `\nWinner by Decision: ${nameA} (Record: ${fighterA.wins}-${fighterA.losses})`;
-      } else {
-        fighterB.wins++;
-        fighterA.losses++;
-        resultText += `\nWinner by Decision: ${nameB} (Record: ${fighterB.wins}-${fighterB.losses})`;
-      }
-
-      resultText += `\n\n--- Post Fight Stats ---\n`;
-      for (let name of [nameA, nameB]) {
-        const s = stats[name];
-        resultText += `${name}: ${s.punchesThrown} thrown, ${s.punchesLanded} landed, Knockdowns: ${s.knockdowns}, Stamina Left: ${s.stamina}, Damage Taken: ${s.damage}\n`;
-      }
-
-      updateFighterDropdowns();
-      document.getElementById('result').textContent = resultText;
     }
+  }
 
-    function generateScorecards() {
-      let scorecards = [];
-      for (let i = 0; i < 3; i++) {
-        let scores = [];
-        for (let round = 1; round <= 12; round++) {
-          scores.push(Math.floor(Math.random() * 2) + 1); // 1 or 2 for scoring fighter
-        }
-        scorecards.push(scores);
+  let winner;
+  if (!koWinner) {
+    result += `\n--- Judges' Scorecards ---\n`;
+    let scores = [0, 0, 0];
+    let aWins = 0;
+    for (let i = 0; i < 3; i++) {
+      let aScore = 0, bScore = 0;
+      for (let r = 1; r <= 12; r++) {
+        if (Math.random() < a.overall / (a.overall + b.overall)) aScore += 10, bScore += 9;
+        else aScore += 9, bScore += 10;
       }
-      return scorecards;
+      result += `Judge ${i + 1}: ${nameA} ${aScore} - ${bScore} ${nameB}\n`;
+      if (aScore > bScore) aWins++;
     }
+    winner = aWins >= 2 ? nameA : nameB;
+    result += `\n📝 Winner by Decision: ${winner}\n`;
+  } else {
+    winner = koWinner;
+  }
 
-    function populateScorecards(scorecards) {
-      const tbody = document.getElementById('scorecardBody');
-      tbody.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>Judge ${i + 1}</td>` + scorecards[i].map(score => `<td>${score}</td>`).join('');
-        tbody.appendChild(tr);
-      }
+  if (winner === nameA) { a.wins++; b.losses++; }
+  else { b.wins++; a.losses++; }
+
+  if (titleMatch && (currentChampion === nameA || currentChampion === nameB)) {
+    if (winner !== currentChampion) {
+      result += `🏆 ${winner} wins the championship!\n`;
+      currentChampion = winner;
+    } else {
+      result += `👑 ${winner} defends the championship!\n`;
     }
+  }
 
-    loadFighterData();
-  </script>
+  updateDropdowns();
+  updateRankings();
+  saveFighters();
+  document.getElementById("result").textContent = result;
+}
+
+loadFighters();
+</script>
 </body>
 </html>
+
+<body>
+  <h1>Boxing Match Simulator 🥊</h1>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('simulator')">Simulator</button>
+    <button class="tab-btn" onclick="showTab('rankings')">Rankings</button>
+  </div>
+
+  <div id="simulator" class="tab-content active">
+    <div>
+      <input type="text" id="fighterName" placeholder="Fighter Name" />
+      <input type="number" id="fighterWins" placeholder="Wins" />
+      <input type="number" id="fighterLosses" placeholder="Losses" />
+      <input type="number" id="fighterOverall" placeholder="Overall" />
+      <button onclick="addFighter()">Add Fighter</button>
+      <button onclick="removeFighter()">Remove Fighter</button>
+      <button onclick="resetFighters()">Reset Fighters</button>
+    </div>
+
+    <div>
+      <label>Fighter A:</label>
+      <select id="selectA"></select>
+      <label>Fighter B:</label>
+      <select id="selectB"></select>
+    </div>
+
+    <div>
+      <label><input type="checkbox" id="titleMatchToggle" /> Title Match</label>
+      <label>Champion:
+        <select id="championSelect"></select>
+        <button onclick="setChampion()">Set Champion</button>
+      </label>
+    </div>
+
+    <button onclick="simulateMatch()">Simulate Match</button>
+
+    <div id="result"></div>
+
+    <div id="scorecard" class="scorecard" style="display:none;">
+      <h3>Judges' Scorecards</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Judge</th>
+            ${[...Array(12)].map((_, i) => `<th>R${i + 1}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody id="scorecardBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="rankings" class="tab-content">
+    <h2>Rankings</h2>
+    <ol id="rankingsList"></ol>
+  </div>
